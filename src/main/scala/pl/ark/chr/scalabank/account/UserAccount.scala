@@ -3,12 +3,13 @@ package pl.ark.chr.scalabank.account
 import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
-import akka.persistence.PersistentActor
+import akka.persistence.{PersistentActor, RecoveryCompleted}
+import pl.ark.chr.scalabank.core.serialization.AvroSerializable
+
 import scala.concurrent.duration._
 
 object UserAccount {
   //COMMANDS
-  case object InitAccount
   case object CreateBankAccount
   case class DepositMoney(accountNumber: String, amount: BigDecimal)
   case class WithdrawMoney(accountNumber: String, amount: BigDecimal)
@@ -16,44 +17,37 @@ object UserAccount {
   case object GetBalances
 
   //EVENTS
-  case class CreateBankAccountEvent(accountNumber: String)
-  case class CloseBankAccountEvent(accountNumber: String)
+  case class CreateBankAccountEvent(accountNumber: String) extends AvroSerializable
+  case class CloseBankAccountEvent(accountNumber: String) extends AvroSerializable
 
   //RECOVER COMMANDS
   private case class RestoreBankAccount(accountNumber: String)
   private case class ShutdownBankAccount(accountNumber: String)
-  private case object RestoreAccount
+  private case object BankAccountRecoveryCompleted
 
   //RESPONSES
   case object BalanceRetrievalTimeout
-  case object BankAccountCreated
+  case class BankAccountCreated(accountNumber: String)
   case object BankAccountClosed
+  case object BankAccountNotFound
 
   def props(username: String): Props = Props(new UserAccount(username))
 }
 
 class UserAccount(username: String) extends PersistentActor with ActorLogging {
 
-  import UserAccount._
   import BankAccount._
+  import UserAccount._
 
   override def persistenceId: String = username
 
-  override def receiveCommand: Receive = initialize()
-
-  def initialize(): Receive = {
-    case InitAccount =>
-      val newBankAccount = createBankAccount
-      context.become(accountManagement(Map(newBankAccount)))
-    case RestoreAccount =>
-      context.become(accountManagement(Map()))
-  }
+  override def receiveCommand: Receive = accountManagement(Map())
 
   def accountManagement(bankAccounts: Map[String, ActorRef]): Receive = {
     case CreateBankAccount =>
       val newBankAccount = createBankAccount
       persist(CreateBankAccountEvent(newBankAccount._1)) { _ =>
-        sender() ! BankAccountCreated
+        sender() ! BankAccountCreated(newBankAccount._1)
         context.become(accountManagement(bankAccounts + newBankAccount))
       }
     case CloseBankAccount(accountNumber) =>
@@ -70,27 +64,35 @@ class UserAccount(username: String) extends PersistentActor with ActorLogging {
       }
     case DepositMoney(accountNumber, amount) =>
       log.info(s"Depositing money: $amount to account: $accountNumber")
-      processCashOperation[Deposit](bankAccounts, accountNumber, Deposit(amount))
+      processCashOperation[Deposit](bankAccounts, accountNumber, Deposit(amount), sender())
     case WithdrawMoney(accountNumber, amount) =>
       log.info(s"Withdrawing money: $amount from account: $accountNumber")
-      processCashOperation[Withdraw](bankAccounts, accountNumber, Withdraw(amount))
+      processCashOperation[Withdraw](bankAccounts, accountNumber, Withdraw(amount), sender())
     case GetBalances =>
+      log.info(s"Getting balance for user: $username")
       val originalSender = sender()
-      context.actorOf(Props(extraActor(bankAccounts, originalSender)))
+      context.actorOf(Props(balanceCollectingActor(bankAccounts, originalSender)))
+  }
+
+  def restoring(bankAccounts: Map[String, ActorRef]): Receive = {
     case RestoreBankAccount(accountNumber) =>
       val restoredBankAccount = createBankAccount(accountNumber)
-      context.become(accountManagement(bankAccounts + restoredBankAccount))
+      context.become(restoring(bankAccounts + restoredBankAccount))
     case ShutdownBankAccount(accountNumber) =>
       bankAccounts.get(accountNumber) match {
         case Some(bankAccount) =>
           bankAccount ! PoisonPill
-          context.become(accountManagement(bankAccounts - accountNumber))
+          context.become(restoring(bankAccounts - accountNumber))
         case None =>
           log.warning(s"User: $username cannot close bank account: $accountNumber since user is not owner of it.")
       }
+    case BankAccountRecoveryCompleted =>
+      unstashAll()
+      context.become(accountManagement(bankAccounts))
+    case _ => stash()
   }
 
-  private def extraActor(bankAccounts: Map[String, ActorRef], originalSender: ActorRef) =
+  private def balanceCollectingActor(bankAccounts: Map[String, ActorRef], originalSender: ActorRef) =
     new Actor() {
       var balances: List[AccountBalance] = List()
       val accountSize = bankAccounts.size
@@ -134,20 +136,25 @@ class UserAccount(username: String) extends PersistentActor with ActorLogging {
     (accountNumber, bankAccount)
   }
 
-  private def processCashOperation[T](bankAccounts: Map[String, ActorRef], accountNumber: String, message: T): Unit = {
+  private def processCashOperation[T](bankAccounts: Map[String, ActorRef], accountNumber: String, message: T, sender: ActorRef): Unit = {
     bankAccounts.get(accountNumber) match {
       case Some(bankAccount) =>
         bankAccount ! message
-      case None => ??? //TODO: return failure
+      case None =>
+        sender ! BankAccountNotFound
     }
   }
 
   override def receiveRecover: Receive = {
     case CreateBankAccountEvent(accountNumber) =>
-      log.info(s"Restoring bank account: $accountNumber")
+      log.info(s"Restoring bank account: $accountNumber for user: $username")
       self ! RestoreBankAccount(accountNumber)
     case CloseBankAccountEvent(accountNumber) =>
-      log.info(s"Shutting down bank account: $accountNumber")
+      log.info(s"Shutting down bank account: $accountNumber for user: $username")
       self ! ShutdownBankAccount(accountNumber)
+    case RecoveryCompleted =>
+      log.info(s"Recovery completed for user: $username")
+      self ! BankAccountRecoveryCompleted
+      context.become(restoring(Map()))
   }
 }

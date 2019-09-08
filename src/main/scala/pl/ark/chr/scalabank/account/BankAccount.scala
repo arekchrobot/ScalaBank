@@ -2,7 +2,7 @@ package pl.ark.chr.scalabank.account
 
 import akka.actor.{ActorLogging, ActorRef, Props, Timers}
 import akka.persistence.{PersistentActor, SaveSnapshotFailure, SaveSnapshotSuccess, SnapshotOffer}
-import pl.ark.chr.scalabank.serialization.AvroSerializable
+import pl.ark.chr.scalabank.core.serialization.AvroSerializable
 
 import scala.concurrent.duration._
 

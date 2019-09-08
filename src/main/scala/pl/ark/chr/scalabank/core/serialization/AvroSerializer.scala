@@ -1,4 +1,4 @@
-package pl.ark.chr.scalabank.serialization
+package pl.ark.chr.scalabank.core.serialization
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
@@ -6,21 +6,28 @@ import akka.serialization.Serializer
 import com.sksamuel.avro4s._
 import org.apache.avro.Schema
 import pl.ark.chr.scalabank.account.BankAccount._
+import pl.ark.chr.scalabank.account.UserAccount._
 import pl.ark.chr.scalabank.common.TryWithResources._
 
 private object AvroSerializer {
   //ENCODERS
   implicit val depositEncoder = Encoder[DepositEvent]
   implicit val withdrawEncoder = Encoder[WithdrawEvent]
+  implicit val createBankAccountEncoder = Encoder[CreateBankAccountEvent]
+  implicit val closeBankAccountEncoder = Encoder[CloseBankAccountEvent]
 
   //DECODERS
   val depositDecoder = Decoder[DepositEvent]
   val withdrawDecoder = Decoder[WithdrawEvent]
+  val createBankAccountDecoder = Decoder[CreateBankAccountEvent]
+  val closeBankAccountDecoder = Decoder[CloseBankAccountEvent]
 
   //SCHEMAS
   val avroSchemas: Map[Class[_], Schema] = Map(
     classOf[DepositEvent] -> AvroSchema[DepositEvent],
-    classOf[WithdrawEvent] -> AvroSchema[WithdrawEvent]
+    classOf[WithdrawEvent] -> AvroSchema[WithdrawEvent],
+    classOf[CreateBankAccountEvent] -> AvroSchema[CreateBankAccountEvent],
+    classOf[CloseBankAccountEvent] -> AvroSchema[CloseBankAccountEvent]
   )
 }
 
@@ -36,6 +43,8 @@ class AvroSerializer extends Serializer {
     o match {
       case a: DepositEvent => serialize(a)
       case a: WithdrawEvent => serialize(a)
+      case a: CreateBankAccountEvent => serialize(a)
+      case a: CloseBankAccountEvent => serialize(a)
       case _ => throw new RuntimeException("Wrong class to serialize")
     }
   }
@@ -69,11 +78,15 @@ class AvroSerializer extends Serializer {
       case None => throw new RuntimeException("No manifest present")
     }
 
-  private def findDecoder(clazz: Class[_]) =
+  private def findDecoder(clazz: Class[_]): Option[Decoder[_]] =
     if (clazz == classOf[DepositEvent])
       Some(depositDecoder)
     else if (clazz == classOf[WithdrawEvent])
       Some(withdrawDecoder)
+    else if (clazz == classOf[CreateBankAccountEvent])
+      Some(createBankAccountDecoder)
+    else if (clazz == classOf[CloseBankAccountEvent])
+      Some(closeBankAccountDecoder)
     else None
 
   private def deserialize[T: Decoder](bytes: Array[Byte], schema: Schema): T =
