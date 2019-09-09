@@ -13,20 +13,20 @@ private object AvroSerializer {
   //ENCODERS
   implicit val depositEncoder = Encoder[DepositEvent]
   implicit val withdrawEncoder = Encoder[WithdrawEvent]
-  implicit val createBankAccountEncoder = Encoder[CreateBankAccountEvent]
+  implicit val createBankAccountEncoder = Encoder[OpenBankAccountEvent]
   implicit val closeBankAccountEncoder = Encoder[CloseBankAccountEvent]
 
   //DECODERS
   val depositDecoder = Decoder[DepositEvent]
   val withdrawDecoder = Decoder[WithdrawEvent]
-  val createBankAccountDecoder = Decoder[CreateBankAccountEvent]
+  val createBankAccountDecoder = Decoder[OpenBankAccountEvent]
   val closeBankAccountDecoder = Decoder[CloseBankAccountEvent]
 
   //SCHEMAS
   val avroSchemas: Map[Class[_], Schema] = Map(
     classOf[DepositEvent] -> AvroSchema[DepositEvent],
     classOf[WithdrawEvent] -> AvroSchema[WithdrawEvent],
-    classOf[CreateBankAccountEvent] -> AvroSchema[CreateBankAccountEvent],
+    classOf[OpenBankAccountEvent] -> AvroSchema[OpenBankAccountEvent],
     classOf[CloseBankAccountEvent] -> AvroSchema[CloseBankAccountEvent]
   )
 }
@@ -43,7 +43,7 @@ class AvroSerializer extends Serializer {
     o match {
       case a: DepositEvent => serialize(a)
       case a: WithdrawEvent => serialize(a)
-      case a: CreateBankAccountEvent => serialize(a)
+      case a: OpenBankAccountEvent => serialize(a)
       case a: CloseBankAccountEvent => serialize(a)
       case _ => throw new RuntimeException("Wrong class to serialize")
     }
@@ -83,7 +83,7 @@ class AvroSerializer extends Serializer {
       Some(depositDecoder)
     else if (clazz == classOf[WithdrawEvent])
       Some(withdrawDecoder)
-    else if (clazz == classOf[CreateBankAccountEvent])
+    else if (clazz == classOf[OpenBankAccountEvent])
       Some(createBankAccountDecoder)
     else if (clazz == classOf[CloseBankAccountEvent])
       Some(closeBankAccountDecoder)

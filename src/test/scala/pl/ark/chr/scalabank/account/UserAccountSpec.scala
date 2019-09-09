@@ -17,8 +17,8 @@ class UserAccountSpec extends ScalaBankPersistenceTestBase(ActorSystem("UserAcco
     "create new bank account" in {
       val userAccount = system.actorOf(props(username))
 
-      userAccount ! CreateBankAccount
-      expectMsgType[BankAccountCreated]
+      userAccount ! OpenBankAccount
+      expectMsgType[BankAccountOpened]
 
       within(300.millis) {
         userAccount ! GetBalances
@@ -31,8 +31,8 @@ class UserAccountSpec extends ScalaBankPersistenceTestBase(ActorSystem("UserAcco
     "deposit and withdraw money" in {
       val userAccount = system.actorOf(props(username))
 
-      userAccount ! CreateBankAccount
-      val bankAccount = expectMsgType[BankAccountCreated]
+      userAccount ! OpenBankAccount
+      val bankAccount = expectMsgType[BankAccountOpened]
 
       userAccount ! DepositMoney(bankAccount.accountNumber, depositAmount)
       expectNoMsg(250.millis)
@@ -52,11 +52,11 @@ class UserAccountSpec extends ScalaBankPersistenceTestBase(ActorSystem("UserAcco
     "correctly return balances" in {
       val userAccount = system.actorOf(props(username))
 
-      userAccount ! CreateBankAccount
-      val bankAccount1 = expectMsgType[BankAccountCreated]
+      userAccount ! OpenBankAccount
+      val bankAccount1 = expectMsgType[BankAccountOpened]
 
-      userAccount ! CreateBankAccount
-      val bankAccount2 = expectMsgType[BankAccountCreated]
+      userAccount ! OpenBankAccount
+      val bankAccount2 = expectMsgType[BankAccountOpened]
 
       userAccount ! DepositMoney(bankAccount1.accountNumber, depositAmount)
       expectNoMsg(250.millis)
@@ -79,11 +79,11 @@ class UserAccountSpec extends ScalaBankPersistenceTestBase(ActorSystem("UserAcco
     "close bank account" in {
       val userAccount = system.actorOf(props(username))
 
-      userAccount ! CreateBankAccount
-      val bankAccount1 = expectMsgType[BankAccountCreated]
+      userAccount ! OpenBankAccount
+      val bankAccount1 = expectMsgType[BankAccountOpened]
 
-      userAccount ! CreateBankAccount
-      val bankAccount2 = expectMsgType[BankAccountCreated]
+      userAccount ! OpenBankAccount
+      val bankAccount2 = expectMsgType[BankAccountOpened]
 
       userAccount ! CloseBankAccount(bankAccount1.accountNumber)
       expectMsg(BankAccountClosed)
@@ -100,11 +100,11 @@ class UserAccountSpec extends ScalaBankPersistenceTestBase(ActorSystem("UserAcco
     "recover it's state" in {
       val userAccount = system.actorOf(props(username))
 
-      userAccount ! CreateBankAccount
-      expectMsgType[BankAccountCreated]
+      userAccount ! OpenBankAccount
+      expectMsgType[BankAccountOpened]
 
-      userAccount ! CreateBankAccount
-      expectMsgType[BankAccountCreated]
+      userAccount ! OpenBankAccount
+      expectMsgType[BankAccountOpened]
 
       userAccount ! PoisonPill
 

@@ -10,14 +10,14 @@ import scala.concurrent.duration._
 
 object UserAccount {
   //COMMANDS
-  case object CreateBankAccount
+  case object OpenBankAccount
   case class DepositMoney(accountNumber: String, amount: BigDecimal)
   case class WithdrawMoney(accountNumber: String, amount: BigDecimal)
   case class CloseBankAccount(accountNumber: String)
   case object GetBalances
 
   //EVENTS
-  case class CreateBankAccountEvent(accountNumber: String) extends AvroSerializable
+  case class OpenBankAccountEvent(accountNumber: String) extends AvroSerializable
   case class CloseBankAccountEvent(accountNumber: String) extends AvroSerializable
 
   //RECOVER COMMANDS
@@ -27,7 +27,7 @@ object UserAccount {
 
   //RESPONSES
   case object BalanceRetrievalTimeout
-  case class BankAccountCreated(accountNumber: String)
+  case class BankAccountOpened(accountNumber: String)
   case object BankAccountClosed
   case object BankAccountNotFound
 
@@ -44,10 +44,11 @@ class UserAccount(username: String) extends PersistentActor with ActorLogging {
   override def receiveCommand: Receive = accountManagement(Map())
 
   def accountManagement(bankAccounts: Map[String, ActorRef]): Receive = {
-    case CreateBankAccount =>
+    case OpenBankAccount =>
       val newBankAccount = createBankAccount
-      persist(CreateBankAccountEvent(newBankAccount._1)) { _ =>
-        sender() ! BankAccountCreated(newBankAccount._1)
+      persist(OpenBankAccountEvent(newBankAccount._1)) { _ =>
+        sender() ! BankAccountOpened(newBankAccount._1)
+        //TODO: persist bank account in DB
         context.become(accountManagement(bankAccounts + newBankAccount))
       }
     case CloseBankAccount(accountNumber) =>
@@ -146,7 +147,7 @@ class UserAccount(username: String) extends PersistentActor with ActorLogging {
   }
 
   override def receiveRecover: Receive = {
-    case CreateBankAccountEvent(accountNumber) =>
+    case OpenBankAccountEvent(accountNumber) =>
       log.info(s"Restoring bank account: $accountNumber for user: $username")
       self ! RestoreBankAccount(accountNumber)
     case CloseBankAccountEvent(accountNumber) =>

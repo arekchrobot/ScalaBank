@@ -32,7 +32,8 @@ class AccountController(implicit val system: ActorSystem) extends RestController
         entity(as[String]) { username =>
           accounts = accounts.getOrElseUpdated(username, {
             val newUser = system.actorOf(UserAccount.props(username), username)
-            newUser ! CreateBankAccount
+            newUser ! OpenBankAccount
+            //TODO: persist account in db
             newUser
           })
           complete(StatusCodes.OK)
