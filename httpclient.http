@@ -1,3 +1,15 @@
 GET http://localhost:8080/hello
 
 ###
+
+POST http://localhost:8080/api/account
+Content-Type: text/plain
+
+arkchr1234
+
+###
+
+GET http://localhost:8080/api/account/arkchr1234/balance
+Accept: application/json
+
+###
