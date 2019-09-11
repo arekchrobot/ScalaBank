@@ -13,3 +13,23 @@ GET http://localhost:8080/api/account/arkchr1234/balance
 Accept: application/json
 
 ###
+
+POST http://localhost:8080/api/account/arkchr1234/deposit
+Content-Type: application/json
+
+{
+  "accountNumber": "39e5d08f-0b9e-4db5-a88f-68fbdd4fab6c",
+  "amount": 13.0
+}
+
+###
+
+POST http://localhost:8080/api/account/arkchr1234/withdraw
+Content-Type: application/json
+
+{
+  "accountNumber": "39e5d08f-0b9e-4db5-a88f-68fbdd4fab6c",
+  "amount": 10.0
+}
+
+###

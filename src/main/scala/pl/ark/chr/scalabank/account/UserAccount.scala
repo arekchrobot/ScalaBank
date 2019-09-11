@@ -5,7 +5,10 @@ import java.util.UUID
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import akka.persistence.{PersistentActor, RecoveryCompleted}
 import pl.ark.chr.scalabank.core.serialization.AvroSerializable
+import akka.pattern.ask
+import akka.util.Timeout
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 object UserAccount {
@@ -137,10 +140,13 @@ class UserAccount(username: String) extends PersistentActor with ActorLogging {
     (accountNumber, bankAccount)
   }
 
+  implicit val timeout = Timeout(250.millis)
+  implicit val askDispatcher: ExecutionContext = context.system.dispatchers.lookup("ask-dispatcher")
+
   private def processCashOperation[T](bankAccounts: Map[String, ActorRef], accountNumber: String, message: T, sender: ActorRef): Unit = {
     bankAccounts.get(accountNumber) match {
       case Some(bankAccount) =>
-        bankAccount ! message
+        (bankAccount ? message).map(sender ! _)
       case None =>
         sender ! BankAccountNotFound
     }

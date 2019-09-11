@@ -7,12 +7,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.pattern.ask
 import akka.util.Timeout
-import pl.ark.chr.scalabank.account.BankAccount.AccountBalance
+import pl.ark.chr.scalabank.account.BankAccount._
 import pl.ark.chr.scalabank.account.UserAccount._
 import pl.ark.chr.scalabank.core.http.RestController
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 class AccountController(implicit val system: ActorSystem) extends RestController
   with AccountJsonProtocol with SprayJsonSupport {
@@ -28,6 +29,41 @@ class AccountController(implicit val system: ActorSystem) extends RestController
 
   override def route(): Route =
     pathPrefix("api" / "account") {
+      (path(Segment / "deposit") & post & extractLog ) { (username, log) =>
+        entity(as[DepositMoney]) { depositMoney =>
+          accounts.get(username) match {
+            case None =>
+              log.info(s"No user found for username: $username")
+              complete(StatusCodes.NotFound)
+            case Some(userAccount) =>
+              onComplete(userAccount ? depositMoney) {
+                case Success(_) => complete(StatusCodes.OK)
+                case Failure(ex) =>
+                  log.error(s"Failure during depositing money to account: $userAccount with error: $ex")
+                  complete(StatusCodes.InternalServerError)
+              }
+          }
+        }
+      } ~
+      (path(Segment / "withdraw") & post & extractLog ) { (username, log) =>
+        entity(as[WithdrawMoney]) { withdrawMoney =>
+          accounts.get(username) match {
+            case None =>
+              log.info(s"No user found for username: $username")
+              complete(StatusCodes.NotFound)
+            case Some(userAccount) =>
+              onComplete(userAccount ? withdrawMoney) {
+                case Success(WithdrawFailure(reason)) =>
+                  log.error(s"Could not withdraw money from account: $userAccount with reason: $reason")
+                  complete(StatusCodes.BadRequest)
+                case Success(_) => complete(StatusCodes.OK)
+                case Failure(ex) =>
+                  log.error(s"Failure during withdrawing money from account: $userAccount with error: $ex")
+                  complete(StatusCodes.InternalServerError)
+              }
+          }
+        }
+      } ~
       post {
         entity(as[String]) { username =>
           accounts = accounts.getOrElseUpdated(username, {
