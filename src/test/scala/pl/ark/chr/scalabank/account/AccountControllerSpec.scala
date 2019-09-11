@@ -43,5 +43,16 @@ class AccountControllerSpec extends ScalaBankHttpTestBase with AccountJsonProtoc
         }
       }
     }
+
+    "not be able to withdraw amount bigger than balance" in {
+      Post("/api/account", username) ~> accountController.route()
+      Thread.sleep(2000)
+      Get(s"/api/account/$username/balance") ~> accountController.route() ~> check {
+        val accountNumber = entityAs[List[AccountBalance]].head.accountNumber
+        Post(s"/api/account/$username/withdraw", WithdrawMoney(accountNumber, withdrawAmount)) ~> accountController.route() ~> check {
+          status shouldBe StatusCodes.BadRequest
+        }
+      }
+    }
   }
 }
